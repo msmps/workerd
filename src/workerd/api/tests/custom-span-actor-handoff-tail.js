@@ -30,30 +30,55 @@ export default {
   },
 };
 
-function resultFor(mode) {
-  const span = spans.get(`actor-handoff.${mode}`);
+function resultFor(eventType, mode) {
+  const span = spans.get(`actor-handoff.${eventType}.${mode}`);
   return {
+    eventType,
     mode,
     attributes: span?.attributes,
     closeCount: span?.closeCount,
   };
 }
 
+const expectedAttributes = [{ name: 'work.finished', value: true }];
+
 export const test = {
   async test() {
     await scheduler.wait(100);
     // The originating tracer must accept the final attribute and normal close.
-    assert.deepStrictEqual(['implicit', 'wait-until'].map(resultFor), [
-      {
-        mode: 'implicit',
-        attributes: [{ name: 'work.finished', value: true }],
-        closeCount: 1,
-      },
-      {
-        mode: 'wait-until',
-        attributes: [{ name: 'work.finished', value: true }],
-        closeCount: 1,
-      },
-    ]);
+    assert.deepStrictEqual(
+      [
+        resultFor('alarm', 'implicit'),
+        resultFor('alarm', 'wait-until'),
+        resultFor('fetch', 'implicit'),
+        resultFor('fetch', 'wait-until'),
+      ],
+      [
+        {
+          eventType: 'alarm',
+          mode: 'implicit',
+          attributes: expectedAttributes,
+          closeCount: 1,
+        },
+        {
+          eventType: 'alarm',
+          mode: 'wait-until',
+          attributes: expectedAttributes,
+          closeCount: 1,
+        },
+        {
+          eventType: 'fetch',
+          mode: 'implicit',
+          attributes: expectedAttributes,
+          closeCount: 1,
+        },
+        {
+          eventType: 'fetch',
+          mode: 'wait-until',
+          attributes: expectedAttributes,
+          closeCount: 1,
+        },
+      ]
+    );
   },
 };

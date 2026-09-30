@@ -11,10 +11,14 @@ export class SpanLifetimeActor extends DurableObject {
   async fetch(request) {
     const path = new URL(request.url).pathname;
     if (path.startsWith('/start/')) {
-      this.mode = path.slice('/start/'.length);
+      [, , this.eventType, this.mode] = path.split('/');
       this.started = false;
       this.finished = false;
-      await this.ctx.storage.setAlarm(Date.now());
+      if (this.eventType === 'alarm') {
+        await this.ctx.storage.setAlarm(Date.now());
+      } else {
+        this.startWork();
+      }
       return new Response(null, { status: 202 });
     }
 
@@ -25,9 +29,13 @@ export class SpanLifetimeActor extends DurableObject {
   }
 
   alarm() {
-    // Keep the span open after the alarm returns.
+    this.startWork();
+  }
+
+  startWork() {
+    // Keep the span open after the alarm or fetch returns.
     const work = tracing.startActiveSpan(
-      `actor-handoff.${this.mode}`,
+      `actor-handoff.${this.eventType}.${this.mode}`,
       async (span) => {
         this.started = true;
         await scheduler.wait(WORK_MS);
@@ -43,10 +51,11 @@ export class SpanLifetimeActor extends DurableObject {
   }
 }
 
-async function runCase(env, mode) {
-  const stub = env.ACTORS.getByName(mode);
+async function runCase(env, eventType, mode) {
+  const name = `${eventType}.${mode}`;
+  const stub = env.ACTORS.getByName(name);
   assert.strictEqual(
-    (await stub.fetch(`https://example.com/start/${mode}`)).status,
+    (await stub.fetch(`https://example.com/start/${eventType}/${mode}`)).status,
     202
   );
 
@@ -57,17 +66,19 @@ async function runCase(env, mode) {
     const state = await status.json();
     if (state.started && !state.finished) sawRunning = true;
     if (state.finished) {
-      assert.ok(sawRunning, `${mode}: no request arrived during the work`);
+      assert.ok(sawRunning, `${name}: no request arrived during the work`);
       return;
     }
     await scheduler.wait(5);
   }
-  assert.fail(`${mode}: work did not finish`);
+  assert.fail(`${name}: work did not finish`);
 }
 
 export const test = {
   async test(_controller, env) {
-    await runCase(env, 'implicit');
-    await runCase(env, 'wait-until');
+    await runCase(env, 'alarm', 'implicit');
+    await runCase(env, 'alarm', 'wait-until');
+    await runCase(env, 'fetch', 'implicit');
+    await runCase(env, 'fetch', 'wait-until');
   },
 };
