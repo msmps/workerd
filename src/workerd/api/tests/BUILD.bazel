@@ -200,6 +200,15 @@ wd_test(
 )
 
 wd_test(
+    src = "custom-span-actor-handoff-test.wd-test",
+    args = ["--experimental"],
+    data = [
+        "custom-span-actor-handoff-tail.js",
+        "custom-span-actor-handoff-test.js",
+    ],
+)
+
+wd_test(
     src = "rpc-stub-gc-warning-test.wd-test",
     args = ["--experimental"],
     data = [

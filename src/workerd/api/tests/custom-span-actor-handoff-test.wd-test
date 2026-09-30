@@ -1,0 +1,30 @@
+using Workerd = import "/workerd/workerd.capnp";
+
+const unitTests :Workerd.Config = (
+  services = [
+    (name = "main", worker = .mainWorker),
+    (name = "tail", worker = .tailWorker),
+  ],
+);
+
+const mainWorker :Workerd.Worker = (
+  modules = [
+    (name = "worker", esModule = embed "custom-span-actor-handoff-test.js"),
+  ],
+  compatibilityFlags = ["experimental", "nodejs_compat"],
+  bindings = [
+    (name = "ACTORS", durableObjectNamespace = "SpanLifetimeActor"),
+  ],
+  durableObjectNamespaces = [
+    (className = "SpanLifetimeActor", uniqueKey = "custom-span-actor-handoff"),
+  ],
+  durableObjectStorage = (inMemory = void),
+  streamingTails = ["tail"],
+);
+
+const tailWorker :Workerd.Worker = (
+  modules = [
+    (name = "worker", esModule = embed "custom-span-actor-handoff-tail.js"),
+  ],
+  compatibilityFlags = ["experimental", "nodejs_compat"],
+);
